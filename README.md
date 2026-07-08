@@ -68,11 +68,11 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 
 - **USDZ / AR Quick Look plays a single animation timeline.** Source files with multiple
   animation clips will keep only one. This is a USDZ format constraint, not a tool bug.
-- **Morph targets / blendshapes are experimental.** The data is authored correctly
-  (verified against the glTF spec math and Apple's ARKit validator — exceeding both
-  Apple's original converter and Google's usd_from_gltf, which drop morphs entirely),
-  but **AR Quick Look's blendshape playback is historically unreliable** — verify on
-  device. Sparse morph-target accessors are not yet supported (dropped with a warning).
+- **Morph targets / blendshapes are supported** — a capability both Apple's original
+  converter and Google's usd_from_gltf lack (they drop morphs entirely). Output is
+  validated per-vertex against the glTF spec math and Apple's ARKit validator, and
+  **playback is verified on-device in AR Quick Look**. Sparse morph-target accessors
+  are not yet supported (dropped with a warning).
 - Ad-hoc signed builds show a Gatekeeper prompt on first open. For frictionless distribution,
   re-sign with an Apple **Developer ID** identity and notarize (`notarytool` + `stapler`).
 

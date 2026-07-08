@@ -220,10 +220,10 @@ struct ContentView: View {
 
             if let result = selectedItem?.result {
                 if result.morphWarning {
-                    Label("Blendshapes authored (experimental) — AR Quick Look may not play them. Verify on device.",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                    Label("Includes blendshape animation (verified playing in AR Quick Look).",
+                          systemImage: "checkmark.seal")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 switch result.hasAnimation {

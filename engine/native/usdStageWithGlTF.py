@@ -1481,10 +1481,9 @@ class glTFConverter:
             for mesh in self.gltf.get('meshes', [])
             for primitive in mesh.get('primitives', []))
         if hasMorphTargets:
-            usdUtils.printWarning(
-                'morph targets detected: authored as USD blend shapes '
-                '(experimental). AR Quick Look may not play blendshape '
-                'animation - verify on device.')
+            # Playback verified on-device in AR Quick Look (2026-07-08, see
+            # docs/on-device-checklist.md) — informational, not a warning.
+            print('morph targets detected: authored as USD blend shapes.')
 
     def makeUsdStage(self):
         if self._loadFailed:
