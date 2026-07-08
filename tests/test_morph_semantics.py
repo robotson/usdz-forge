@@ -90,7 +90,9 @@ def interpolate_weights(times, weights, t):
 
 # ---- the acceptance test -------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["AnimatedMorphCube", "AnimatedMorphSphere"])
+# (AnimatedMorphSphere only exists in the retired glTF-Sample-Models repo;
+#  MorphStressTest is the 8-target stress case in glTF-Sample-Assets.)
+@pytest.mark.parametrize("name", ["AnimatedMorphCube", "MorphStressTest"])
 def test_morph_conversion_matches_gltf_math(name):
     glb = fetch_fixture(name)
     out, code, _ = convert(glb, name + "_semantics")

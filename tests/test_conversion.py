@@ -12,7 +12,7 @@ import pytest
 from anim_probe import profile, is_animated
 from conftest import fetch_fixture, convert
 
-MORPH_WARNING = "morph targets/blendshapes detected"
+MORPH_WARNING = "morph targets detected"
 
 
 def run(name):

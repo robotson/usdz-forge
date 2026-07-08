@@ -25,9 +25,18 @@ def _pxrIntArrayFromData(data):
 import os.path
 import base64
 
+import re
+
 import usdUtils
 
 __all__ = ['usdStageWithGlTF']
+
+
+def makeValidPrimName(name):
+    validated = re.sub('[^A-Za-z0-9_]', '_', name)
+    if not validated or validated[0].isdigit():
+        validated = '_' + validated
+    return validated
 
 
 class glTFComponentType:
@@ -360,10 +369,18 @@ class glTFConverter:
         self.copyTextures = copyTextures
         self.verbose = verbose
         self.legacyModifier = legacyModifier # for iOS 12 compatibility
-        self.skeletonByNode = {} # collect skinned mesh to construct later 
+        self.skeletonByNode = {} # collect skinned mesh to construct later
         self._worldTransforms = {} # use self.getWorldTransform(nodeIdx)
         self._parents = {} # use self.getParent(nodeIdx)
         self._loadFailed = False
+        # Morph targets / blendshapes (UsdSkel.BlendShape):
+        #   morphState[strNodeIdx] = { 'names': [shape names in authored order],
+        #                              'skinSkeleton': usdUtils.Skeleton or None,
+        #                              'synthSkelPath': Sdf path string or None }
+        self.morphState = {}
+        # Set while processing a morph-only mesh so processPrimitive can bind
+        # the synthetic skeleton (mirrors the codebase's context-passing style).
+        self._currentMorphSkelPath = None
 
         filenameFull = gltfPath.split('/')[-1]
         self.srcFolder = gltfPath[:len(gltfPath)-len(filenameFull)]
@@ -783,6 +800,195 @@ class glTFConverter:
         return values
 
 
+    def _authorBlendShapes(self, nodeIdx, gltfPrimitive, usdMesh, usdSkelBinding, skin, skeleton, path):
+        # glTF morph targets -> UsdSkel.BlendShape prims (children of the mesh),
+        # following the structure Blender's exporter produces (see
+        # docs/morph-implementation.md). Weight animation is authored later by
+        # processMorphWeightAnimations().
+        targets = gltfPrimitive.get('targets')
+        if not targets or not isinstance(usdMesh, UsdGeom.Mesh):
+            return
+
+        gltfNode = self.gltf['nodes'][nodeIdx]
+        meshIdx = gltfNode['mesh']
+        targetNames = self.gltf['meshes'][meshIdx].get('extras', {}).get('targetNames')
+
+        binding = usdSkelBinding
+        if binding is None:
+            binding = UsdSkel.BindingAPI.Apply(usdMesh.GetPrim())
+        if self._currentMorphSkelPath is not None:
+            binding.CreateSkeletonRel().AddTarget(self._currentMorphSkelPath)
+
+        strNodeIdx = str(nodeIdx)
+        state = self.morphState.setdefault(
+            strNodeIdx, {'names': [], 'skinSkeleton': None, 'synthSkelPath': None})
+
+        # glTF morph targets are defined per-MESH: every primitive of the mesh
+        # shares the same target list and the same weights stream. So shape
+        # names are computed deterministically per target index — a second
+        # primitive re-authors its own BlendShape prims under its own path but
+        # binds the SAME names, letting one SkelAnimation drive all primitives.
+        names = []
+        shapePaths = []
+        for i in range(len(targets)):
+            target = targets[i]
+            if 'POSITION' not in target:
+                usdUtils.printWarning('morph target %d has no POSITION offsets; dropped.' % i)
+                continue
+            accIdx = target['POSITION']
+            if 'sparse' in self.gltf['accessors'][accIdx]:
+                usdUtils.printWarning(
+                    'sparse accessor in morph target %d is not supported; target dropped.' % i)
+                continue
+
+            name = None
+            if targetNames is not None and i < len(targetNames):
+                name = makeValidPrimName(str(targetNames[i]))
+            if not name:
+                name = 'shape_' + str(i)
+            if name in names:  # sanitized duplicates within this target list
+                name = name + '_' + str(i)
+
+            acc = Accessor(self, accIdx)
+            data = acc.data
+            offsets = Vt.Vec3fArray(acc.count)
+            for el in range(acc.count):
+                offsets[el] = Gf.Vec3f(float(data[el * 3]),
+                                       float(data[el * 3 + 1]),
+                                       float(data[el * 3 + 2]))
+
+            usdBlendShape = UsdSkel.BlendShape.Define(self.usdStage, path + '/' + name)
+            usdBlendShape.CreateOffsetsAttr(offsets)
+            usdBlendShape.CreatePointIndicesAttr(Vt.IntArray(list(range(acc.count))))
+
+            if 'NORMAL' in target and 'sparse' not in self.gltf['accessors'][target['NORMAL']]:
+                nAcc = Accessor(self, target['NORMAL'])
+                nData = nAcc.data
+                normalOffsets = Vt.Vec3fArray(nAcc.count)
+                for el in range(nAcc.count):
+                    normalOffsets[el] = Gf.Vec3f(float(nData[el * 3]),
+                                                 float(nData[el * 3 + 1]),
+                                                 float(nData[el * 3 + 2]))
+                usdBlendShape.CreateNormalOffsetsAttr(normalOffsets)
+
+            names.append(name)
+            shapePaths.append(usdBlendShape.GetPath())
+
+        if not names:
+            return
+
+        binding.CreateBlendShapesAttr().Set(names)
+        rel = binding.CreateBlendShapeTargetsRel()
+        for shapePath in shapePaths:
+            rel.AddTarget(shapePath)
+
+        # Mesh-level name list: identical for every primitive of this mesh.
+        if not state['names']:
+            state['names'] = names
+        if skin is not None and skin.skeleton is not None:
+            state['skinSkeleton'] = skin.skeleton
+        elif skeleton is not None:
+            state['skinSkeleton'] = skeleton
+        if self._currentMorphSkelPath is not None:
+            state['synthSkelPath'] = self._currentMorphSkelPath
+
+
+    def _skelAnimForMorphState(self, strNodeIdx, state):
+        # Find (or create) the SkelAnimation that should carry blendShapeWeights
+        # for this mesh node.
+        skinSkel = state['skinSkeleton']
+        if skinSkel is not None and skinSkel.usdSkelAnim is not None:
+            return skinSkel.usdSkelAnim
+        if state.get('usdSkelAnim') is not None:
+            return state['usdSkelAnim']
+
+        anim = None
+        if state['synthSkelPath'] is not None:
+            # Morph-only mesh: animation lives under the synthesized skeleton.
+            anim = UsdSkel.Animation.Define(self.usdStage, state['synthSkelPath'] + '/Anim')
+            skelPrim = self.usdStage.GetPrimAtPath(state['synthSkelPath'])
+            UsdSkel.BindingAPI.Apply(skelPrim).CreateAnimationSourceRel().AddTarget(anim.GetPath())
+        elif skinSkel is not None and skinSkel.usdSkeleton is not None:
+            # Skeleton exists but carries no joint animation of its own.
+            animPath = self.asset.getAnimationsPath() + '/morphAnim_' + strNodeIdx
+            anim = UsdSkel.Animation.Define(self.usdStage, animPath)
+            UsdSkel.BindingAPI.Apply(skinSkel.usdSkeleton.GetPrim()) \
+                .CreateAnimationSourceRel().AddTarget(anim.GetPath())
+        state['usdSkelAnim'] = anim
+        return anim
+
+
+    def processMorphWeightAnimations(self):
+        # glTF animation channels with target.path == 'weights' -> time-sampled
+        # blendShapeWeights on the SkelAnimation bound to the mesh's skeleton.
+        for gltfAnim in self.gltf['animations'] if 'animations' in self.gltf else []:
+            for gltfChannel in gltfAnim['channels']:
+                gltfTarget = gltfChannel['target']
+                if gltfTarget.get('path') != 'weights' or 'node' not in gltfTarget:
+                    continue
+                strNodeIdx = str(gltfTarget['node'])
+                state = self.morphState.get(strNodeIdx)
+                if state is None or not state['names']:
+                    continue  # targets were dropped (e.g. sparse) and warned about
+
+                n = len(state['names'])
+                gltfSampler = gltfAnim['samplers'][gltfChannel['sampler']]
+                interpolation = gltfSampler.get('interpolation', 'LINEAR')
+                keyTimesAcc = Accessor(self, gltfSampler['input'])
+                keyValuesAcc = Accessor(self, gltfSampler['output'])
+                tdata = keyTimesAcc.data
+                vdata = keyValuesAcc.data
+
+                samples = {}  # timeCode -> [weights] * n
+                if interpolation == 'CUBICSPLINE':
+                    # per key: [inTangents*n, values*n, outTangents*n]; bake
+                    # per-frame with the same hermite math the joint path uses
+                    for el in range(keyTimesAcc.count - 1):
+                        t0 = self.asset.toTimeCode(tdata[el], True)
+                        t1 = self.asset.toTimeCode(tdata[el + 1], True)
+                        timeRange = max(t1 - t0, 0.00001)
+                        steps = max(int(timeRange), 1)
+                        base0 = el * n * 3
+                        base1 = (el + 1) * n * 3
+                        for step in range(steps):
+                            t = float(step) / steps
+                            t2 = t * t
+                            t3 = t2 * t
+                            weights = []
+                            for i in range(n):
+                                p0 = float(vdata[base0 + n + i])
+                                m0 = float(vdata[base0 + 2 * n + i]) * timeRange
+                                m1 = float(vdata[base1 + i]) * timeRange
+                                p1 = float(vdata[base1 + n + i])
+                                weights.append(
+                                    (2*t3 - 3*t2 + 1) * p0 + (t3 - 2*t2 + t) * m0
+                                    + (-2*t3 + 3*t2) * p1 + (t3 - t2) * m1)
+                            samples[t0 + step] = weights
+                    el = keyTimesAcc.count - 1
+                    base = el * n * 3
+                    samples[self.asset.toTimeCode(tdata[el], True)] = [
+                        float(vdata[base + n + i]) for i in range(n)]
+                else:
+                    if interpolation == 'STEP':
+                        for el in range(1, keyTimesAcc.count):
+                            time = self.asset.toTimeCode(tdata[el], True) - 1
+                            samples[time] = [float(vdata[(el - 1) * n + i]) for i in range(n)]
+                    # LINEAR keys author exactly: USD lerps between time samples
+                    for el in range(keyTimesAcc.count):
+                        time = self.asset.toTimeCode(tdata[el], True)
+                        samples[time] = [float(vdata[el * n + i]) for i in range(n)]
+
+                usdSkelAnim = self._skelAnimForMorphState(strNodeIdx, state)
+                if usdSkelAnim is None:
+                    usdUtils.printWarning(
+                        'no skeleton to carry blendshape weights for node ' + strNodeIdx)
+                    continue
+                usdSkelAnim.CreateBlendShapesAttr().Set(state['names'])
+                weightsAttr = usdSkelAnim.CreateBlendShapeWeightsAttr()
+                for time in sorted(samples):
+                    weightsAttr.Set(Vt.FloatArray(samples[time]), Usd.TimeCode(float(time)))
+
+
     def processSkeletonAnimation(self):
         for gltfAnim in self.gltf['animations'] if 'animations' in self.gltf else []:
 
@@ -1062,6 +1268,8 @@ class glTFConverter:
 
             usdMesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
 
+        self._authorBlendShapes(nodeIdx, gltfPrimitive, usdMesh, usdSkelBinding, skin, skeleton, path)
+
         # bind material to mesh
         if 'material' in gltfPrimitive:
             materialIdx = gltfPrimitive['material']
@@ -1127,6 +1335,18 @@ class glTFConverter:
                     self.skeletonByNode[str(nodeIdx)] = underSkeleton
                     if self.verbose:
                         print(indent + 'Skinned mesh:', name)
+                elif self.meshHasMorphTargets(gltfNode['mesh']):
+                    # Morph-only mesh: UsdSkel blendshapes only evaluate under a
+                    # SkelRoot with a bound Skeleton, so synthesize a jointless
+                    # one (same structure Blender's USD exporter produces).
+                    if self.verbose:
+                        print(indent + 'Morph mesh (synthesized SkelRoot):', name)
+                    usdGeom = UsdSkel.Root.Define(self.usdStage, newPath)
+                    skelPath = newPath + '/Skel'
+                    UsdSkel.Skeleton.Define(self.usdStage, skelPath)
+                    self._currentMorphSkelPath = skelPath
+                    self.processMesh(nodeIdx, newPath + '/' + name + '_geo', underSkeleton)
+                    self._currentMorphSkelPath = None
                 else:
                     if self.verbose:
                         print(indent + 'Mesh:', name)
@@ -1244,36 +1464,32 @@ class glTFConverter:
                 self.usdGeoms[nodeIdx] = usdGeom
 
 
-    def _warnUnsupportedMorphTargets(self):
-        # This converter (like Apple's original usdzconvert 0.62 it derives from)
-        # has no morph-target/blendshape support: mesh 'targets' and animation
-        # channels driving 'weights' are never read. Without this check a
-        # morph-animated GLB converts "successfully" into a frozen model with no
-        # signal — so detect it and warn loudly (CLI stderr + app UI via log).
-        hasMorphTargets = False
-        for mesh in self.gltf.get('meshes', []):
-            for primitive in mesh.get('primitives', []):
-                if primitive.get('targets'):
-                    hasMorphTargets = True
-                    break
-            if hasMorphTargets:
-                break
-        hasWeightsAnimation = any(
-            channel.get('target', {}).get('path') == 'weights'
-            for animation in self.gltf.get('animations', [])
-            for channel in animation.get('channels', [])
-        )
-        if hasMorphTargets or hasWeightsAnimation:
+    def meshHasMorphTargets(self, meshIdx):
+        for primitive in self.gltf['meshes'][meshIdx].get('primitives', []):
+            if primitive.get('targets'):
+                return True
+        return False
+
+    def _warnMorphTargets(self):
+        # Morph targets ARE authored (UsdSkel.BlendShape + blendShapeWeights),
+        # exceeding Apple's original usdzconvert 0.62 and Google's usd_from_gltf
+        # (neither implements them). Two caveats still warrant a warning:
+        # sparse target accessors are dropped, and AR Quick Look's blendshape
+        # PLAYBACK is historically unreliable — data-valid != plays-on-device.
+        hasMorphTargets = any(
+            primitive.get('targets')
+            for mesh in self.gltf.get('meshes', [])
+            for primitive in mesh.get('primitives', []))
+        if hasMorphTargets:
             usdUtils.printWarning(
-                'morph targets/blendshapes detected: NOT supported by this converter. '
-                + ('Morph animation will be dropped and affected meshes will be static. '
-                   if hasWeightsAnimation else 'Morph target data will be dropped. ')
-                + 'Only node-transform and skeletal/skinned animation are preserved.')
+                'morph targets detected: authored as USD blend shapes '
+                '(experimental). AR Quick Look may not play blendshape '
+                'animation - verify on device.')
 
     def makeUsdStage(self):
         if self._loadFailed:
             return None
-        self._warnUnsupportedMorphTargets()
+        self._warnMorphTargets()
         self.usdStage = self.asset.makeUsdStage()
         #gltf units for all linear distance are meters
         if self.legacyModifier is None:
@@ -1285,6 +1501,7 @@ class glTFConverter:
         self.processSkeletonAnimation()
         self.processSkinnedMeshes()
         self.processNodeTransformAnimation()
+        self.processMorphWeightAnimations()
         self.asset.finalize()
         return self.usdStage
 

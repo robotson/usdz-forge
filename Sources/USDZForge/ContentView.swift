@@ -220,7 +220,7 @@ struct ContentView: View {
 
             if let result = selectedItem?.result {
                 if result.morphWarning {
-                    Label("Morph/blendshape animation detected — not supported. Affected meshes will be static in the output.",
+                    Label("Blendshapes authored (experimental) — AR Quick Look may not play them. Verify on device.",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)

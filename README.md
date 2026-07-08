@@ -20,8 +20,10 @@ the app** — nothing needs to be installed on the target machine.
 
 ## Features
 
-- Drag-and-drop GLB / glTF / OBJ → USDZ
-- **Animation preserved** — node transforms and skeletal/skinned (UsdSkel) animation
+- Drag-and-drop GLB / glTF / OBJ → USDZ, single files or whole folders (batch)
+- **Animation preserved** — node transforms, skeletal/skinned (UsdSkel), and
+  morph targets/blendshapes (authored as `UsdSkel.BlendShape`; validated
+  per-vertex against the glTF spec math)
 - PBR materials + textures embedded into the package
 - Live in-window 3D preview with animation playback (SceneKit)
 - Flags in the UI whether the output actually carries animation
@@ -66,9 +68,11 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 
 - **USDZ / AR Quick Look plays a single animation timeline.** Source files with multiple
   animation clips will keep only one. This is a USDZ format constraint, not a tool bug.
-- **Morph targets / blendshapes are not supported** (a limitation inherited from Apple's
-  original converter). Morph-animated meshes come out static; the CLI and the app warn
-  loudly when morph data is detected in the input.
+- **Morph targets / blendshapes are experimental.** The data is authored correctly
+  (verified against the glTF spec math and Apple's ARKit validator — exceeding both
+  Apple's original converter and Google's usd_from_gltf, which drop morphs entirely),
+  but **AR Quick Look's blendshape playback is historically unreliable** — verify on
+  device. Sparse morph-target accessors are not yet supported (dropped with a warning).
 - Ad-hoc signed builds show a Gatekeeper prompt on first open. For frictionless distribution,
   re-sign with an Apple **Developer ID** identity and notarize (`notarytool` + `stapler`).
 
