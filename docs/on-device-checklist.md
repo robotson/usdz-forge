@@ -18,6 +18,7 @@ renderers *play* it. Record results here per release / iOS version.
 | 2026-07-08 | AnimatedMorphCube | **morph/blendshape** | iPhone, AR Quick Look (in-room AR) | ✅ **plays** — synthesized-SkelRoot blendshape structure confirmed working on-device |
 | 2026-07-08 | RobotExpressive (armature scale=100) | rigid + skinned | iPhone, AR Quick Look | ✅ after v0.2.2+v0.2.3 bind-space fixes (was: blank, then disembodied hands — both were engine bugs, both fixed + regression-tested) |
 | 2026-07-08 | RobotExpressive-morphtest (injected weights) | **skeletal + blendshape SIMULTANEOUSLY** | macOS Quick Look (RealityKit) | ✅ **both play together** — clip animates while eyebrows/eyes visibly pulse the Surprised morph. iPhone spot-check still worth logging. |
+| 2026-07-08 | brunette-talking (RPM avatar + hand-authored SkelAnimation) | **ARKit facial morphs: jawOpen flutter + smile + blinks** | Quick Look | ✅ **works** — talking-head pipeline proven end-to-end: GLB → converter (268 BlendShapes intact) → USD-authored viseme-style weight curves → renders talking. Foundation for lip-synced AR characters. |
 
 ## Still to spot-check when convenient
 
