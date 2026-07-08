@@ -872,7 +872,9 @@ class glTFConverter:
                         else:
                             values.append(getTransformTranslation(gltfNodes[int(joint)]))
                 if len(values):
-                    attr.Set(values, Usd.TimeCode(time))
+                    # times may be numpy.float32 (from accessor data); modern USD's
+                    # TimeCode binding only accepts a Python double.
+                    attr.Set(values, Usd.TimeCode(float(time)))
             if len(times) == 0: # add default values if no keys
                 values = []
                 for joint in skeleton.joints:
@@ -893,7 +895,9 @@ class glTFConverter:
                         else:
                             values.append(getTransformRotation(gltfNodes[int(joint)]))
                 if len(values):
-                    attr.Set(values, Usd.TimeCode(time))
+                    # times may be numpy.float32 (from accessor data); modern USD's
+                    # TimeCode binding only accepts a Python double.
+                    attr.Set(values, Usd.TimeCode(float(time)))
             if len(times) == 0:
                 values = []
                 for joint in skeleton.joints:
@@ -914,7 +918,9 @@ class glTFConverter:
                         else:
                             values.append(getTransformScale(gltfNodes[int(joint)]))
                 if len(values):
-                    attr.Set(values, Usd.TimeCode(time))
+                    # times may be numpy.float32 (from accessor data); modern USD's
+                    # TimeCode binding only accepts a Python double.
+                    attr.Set(values, Usd.TimeCode(float(time)))
             if len(times) == 0:
                 values = []
                 for joint in skeleton.joints:
@@ -1238,9 +1244,36 @@ class glTFConverter:
                 self.usdGeoms[nodeIdx] = usdGeom
 
 
+    def _warnUnsupportedMorphTargets(self):
+        # This converter (like Apple's original usdzconvert 0.62 it derives from)
+        # has no morph-target/blendshape support: mesh 'targets' and animation
+        # channels driving 'weights' are never read. Without this check a
+        # morph-animated GLB converts "successfully" into a frozen model with no
+        # signal — so detect it and warn loudly (CLI stderr + app UI via log).
+        hasMorphTargets = False
+        for mesh in self.gltf.get('meshes', []):
+            for primitive in mesh.get('primitives', []):
+                if primitive.get('targets'):
+                    hasMorphTargets = True
+                    break
+            if hasMorphTargets:
+                break
+        hasWeightsAnimation = any(
+            channel.get('target', {}).get('path') == 'weights'
+            for animation in self.gltf.get('animations', [])
+            for channel in animation.get('channels', [])
+        )
+        if hasMorphTargets or hasWeightsAnimation:
+            usdUtils.printWarning(
+                'morph targets/blendshapes detected: NOT supported by this converter. '
+                + ('Morph animation will be dropped and affected meshes will be static. '
+                   if hasWeightsAnimation else 'Morph target data will be dropped. ')
+                + 'Only node-transform and skeletal/skinned animation are preserved.')
+
     def makeUsdStage(self):
         if self._loadFailed:
             return None
+        self._warnUnsupportedMorphTargets()
         self.usdStage = self.asset.makeUsdStage()
         #gltf units for all linear distance are meters
         if self.legacyModifier is None:

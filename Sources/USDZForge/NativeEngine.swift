@@ -57,7 +57,8 @@ struct NativeEngine: ConversionEngine {
         return ConversionResult(
             outputURL: output,
             log: LogCleaner.clean(log),
-            hasAnimation: probeAnimation(output)
+            hasAnimation: probeAnimation(output),
+            morphWarning: log.contains("morph targets/blendshapes detected")
         )
     }
 

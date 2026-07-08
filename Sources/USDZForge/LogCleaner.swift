@@ -20,10 +20,16 @@ enum LogCleaner {
     ]
 
     static func clean(_ log: String) -> String {
-        log
+        stripANSI(log)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { line in !noiseMarkers.contains { line.contains($0) } }
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Remove ANSI color escape sequences (the engine colorizes warnings for
+    /// terminals; they render as garbage in the UI log).
+    private static func stripANSI(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
     }
 }

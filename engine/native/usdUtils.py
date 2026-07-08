@@ -189,9 +189,10 @@ class Asset:
 
     def finalize(self):
         if not math.isinf(self.endTime):
-            self.usdStage.SetStartTimeCode(self.toTimeCode(self.beginTime))
-            self.usdStage.SetEndTimeCode(self.toTimeCode(self.endTime))
-            self.usdStage.SetTimeCodesPerSecond(self.timeCodesPerSecond)
+            # begin/end may be numpy.float32; modern USD bindings require double
+            self.usdStage.SetStartTimeCode(float(self.toTimeCode(self.beginTime)))
+            self.usdStage.SetEndTimeCode(float(self.toTimeCode(self.endTime)))
+            self.usdStage.SetTimeCodesPerSecond(float(self.timeCodesPerSecond))
 
 
 

@@ -19,7 +19,7 @@ the app** — nothing needs to be installed on the target machine.
 ## Features
 
 - Drag-and-drop GLB / glTF / OBJ → USDZ
-- **Animation preserved** — node transforms, skeletal/skinned (UsdSkel), morph targets
+- **Animation preserved** — node transforms and skeletal/skinned (UsdSkel) animation
 - PBR materials + textures embedded into the package
 - Live in-window 3D preview with animation playback (SceneKit)
 - Flags in the UI whether the output actually carries animation
@@ -62,8 +62,10 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 ## Notes & limitations
 
 - **USDZ / AR Quick Look plays a single animation timeline.** Source files with multiple
-  animation clips will keep only one; morph-only animation may not survive. This is a USDZ
-  format constraint, not a tool bug.
+  animation clips will keep only one. This is a USDZ format constraint, not a tool bug.
+- **Morph targets / blendshapes are not supported** (a limitation inherited from Apple's
+  original converter). Morph-animated meshes come out static; the CLI and the app warn
+  loudly when morph data is detected in the input.
 - Ad-hoc signed builds show a Gatekeeper prompt on first open. For frictionless distribution,
   re-sign with an Apple **Developer ID** identity and notarize (`notarytool` + `stapler`).
 

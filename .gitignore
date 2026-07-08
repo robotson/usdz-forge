@@ -15,6 +15,11 @@ engine/usd_from_gltf/
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+
+# Test artifacts (fixtures are fetched+cached; outputs are regenerated)
+tests/fixtures/
+tests/output/
 
 # Generated icon intermediates (AppIcon.icns IS committed as the app asset)
 packaging/AppIcon.iconset/

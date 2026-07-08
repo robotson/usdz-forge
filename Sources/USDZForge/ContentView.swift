@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var isTargeted = false
     @State private var lastOutput: URL?
     @State private var animationNote: String?
+    @State private var morphWarning = false
 
     private let engine: ConversionEngine = ContentView.selectEngine()
 
@@ -92,6 +93,13 @@ struct ContentView: View {
             Text(status)
                 .font(.headline)
                 .multilineTextAlignment(.center)
+            if morphWarning {
+                Label("Morph/blendshape animation detected — not supported. Affected meshes will be static in the output.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
             if let note = animationNote {
                 Label(note, systemImage: "film.stack")
                     .font(.caption)
@@ -133,6 +141,7 @@ struct ContentView: View {
     private func convert(_ input: URL) {
         isConverting = true
         animationNote = nil
+        morphWarning = false
         lastOutput = nil
         status = "Converting \(input.lastPathComponent)…"
         log = ""
@@ -153,6 +162,7 @@ struct ContentView: View {
                     status = "✅ \(r.outputURL.lastPathComponent)"
                     lastOutput = r.outputURL
                     log = r.log
+                    morphWarning = r.morphWarning
                     switch r.hasAnimation {
                     case .some(true):
                         animationNote = "Animation detected — verify in Quick Look on device."

@@ -12,6 +12,9 @@ struct ConversionResult {
     let log: String
     /// Whether the produced USDZ carries animation timeSamples. `nil` if not inspected.
     let hasAnimation: Bool?
+    /// True when the source contained morph targets/blendshapes, which this
+    /// engine does not support — the output will be static for those meshes.
+    var morphWarning: Bool = false
 }
 
 enum ConversionError: LocalizedError {
