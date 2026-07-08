@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var lastOutput: URL?
     @State private var animationNote: String?
     @State private var morphWarning = false
+    @State private var availableUpdate: UpdateChecker.Update?
 
     private let engine: ConversionEngine = ContentView.selectEngine()
 
@@ -52,6 +53,41 @@ struct ContentView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let update = availableUpdate {
+                updateBanner(update)
+            }
+        }
+        .task {
+            availableUpdate = await UpdateChecker.check()
+        }
+    }
+
+    /// Pinned flush to the top of the window (safeAreaInset), not floated in
+    /// the centered content stack.
+    private func updateBanner(_ update: UpdateChecker.Update) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(Color.accentColor)
+            Text("USDZ Forge \(update.version) is available")
+                .font(.callout.weight(.medium))
+            Spacer()
+            Button("Download") { NSWorkspace.shared.open(update.url) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            Button {
+                withAnimation { availableUpdate = nil }
+            } label: {
+                Image(systemName: "xmark").font(.caption2)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private var header: some View {
