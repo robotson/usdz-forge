@@ -126,16 +126,22 @@ def test_robot_expressive_skin_and_morph_in_same_clip():
     from pxr import Usd, UsdGeom, UsdSkel, Gf
     stage = Usd.Stage.Open(out)
     for prim in stage.Traverse():
-        if not prim.IsA(UsdGeom.Mesh):
-            continue
-        gbt = UsdSkel.BindingAPI(prim).GetGeomBindTransformAttr().Get()
-        if gbt is None:
-            continue
-        scale = Gf.Transform(gbt).GetScale()
-        for component in scale:
-            assert abs(component) < 10, \
-                "geomBindTransform carries ancestor scale (%s on %s) - " \
-                "world/skel space mismatch" % (scale, prim.GetPath())
+        if prim.IsA(UsdGeom.Mesh):
+            gbt = UsdSkel.BindingAPI(prim).GetGeomBindTransformAttr().Get()
+            if gbt is not None:
+                scale = Gf.Transform(gbt).GetScale()
+                for component in scale:
+                    assert abs(component) < 10, \
+                        "geomBindTransform carries ancestor scale (%s on %s) - " \
+                        "world/skel space mismatch" % (scale, prim.GetPath())
+        if prim.IsA(UsdSkel.Skeleton):
+            # Non-skin joints once fell back to world-space binds while skin
+            # joints were armature-relative -> 'floating disembodied hands'.
+            binds = UsdSkel.Skeleton(prim).GetBindTransformsAttr().Get() or []
+            for i, bind in enumerate(binds):
+                s = Gf.Transform(bind).GetScale()[0]
+                assert abs(s) < 10, \
+                    "joint %d bind carries ancestor scale (%s) - mixed spaces" % (i, s)
 
 
 def test_rpm_avatar_skeleton_and_morphs_coexist():

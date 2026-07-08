@@ -704,6 +704,21 @@ class glTFConverter:
 
             self.skinning.skins.append(skin)
         self.skinning.createSkeletonsFromSkins()
+
+        # Joints not covered by any skin's inverseBindMatrices would fall back
+        # to TRUE world-space binds in makeUsdSkeleton, while IBM-derived binds
+        # are armature-relative — mixed spaces scatter rigid meshes by the
+        # armature's transform (three.js exports carry scale=100: the robot's
+        # non-skin joints rendered 100x away -> 'floating disembodied hands').
+        # Prefill every missing bind in the same skeleton-root-parent space.
+        for skeleton in self.skinning.skeletons:
+            rootParentIdx = self.getParent(int(skeleton.getRoot()))
+            skelSpaceInv = self.getWorldTransform(rootParentIdx).GetInverse()
+            for joint in skeleton.joints:
+                if joint is not None and joint not in skeleton.bindMatrices:
+                    skeleton.bindMatrices[joint] = \
+                        self.getWorldTransform(int(joint)) * skelSpaceInv
+
         if self.verbose:
             print("  Found skeletons:", len(self.skinning.skeletons), "with", len(self.skinning.skins), "skin(s)")
         for skeleton in self.skinning.skeletons:
