@@ -28,6 +28,7 @@ mkdir -p "$APP/Contents/Resources/engine"
 echo "==> App binary + Info.plist"
 ditto --norsrc --noextattr "$BIN" "$APP/Contents/MacOS/USDZForge"
 cp "$ROOT/packaging/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/packaging/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 echo "==> Bundle engine: standalone python + native scripts"
 ditto --norsrc --noextattr "$ENGINE/python" "$APP/Contents/Resources/engine/python"
