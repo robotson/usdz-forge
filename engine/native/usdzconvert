@@ -741,7 +741,9 @@ def process(argumentList):
         matPath = str(directBinding.GetMaterialPath())
         if matPath == '':
             defaultMaterial = createMaterial(params, 'defaultConverterMaterial')
-            bindAPI.Bind(defaultMaterial)
+            # Apply (not just construct) so the schema is recorded — required
+            # by modern USD validation (MaterialBindingAPIAppliedChecker).
+            UsdShade.MaterialBindingAPI.Apply(rootPrim).Bind(defaultMaterial)
     usdStage.GetRootLayer().Export(tmpPath)
 
     # prepare destination folder

@@ -310,7 +310,8 @@ def validateMaterial(materialPrim, verbose, errorData):
     connect = UsdShade.ConnectableAPI.GetConnectedSource(surface)
     if not validateConnection(surface, connect, verboseOutput, errorData):
         return False
-    if connect is None or not connect[0].IsShader():
+    # Modern USD removed ConnectableAPI.IsShader(); test the prim type instead.
+    if connect is None or not connect[0].GetPrim().IsA(UsdShade.Shader):
         # Empty material is valid
         return True
 

@@ -956,7 +956,7 @@ class glTFConverter:
         if skinIdx != -1:
             skin = self.skinning.skins[skinIdx]
             if skin.skeleton is not None:
-                usdSkelBinding = UsdSkel.BindingAPI(usdMesh)
+                usdSkelBinding = UsdSkel.BindingAPI.Apply(usdMesh.GetPrim())
                 differenceTransform = Gf.Matrix4d(1)
                 usdSkelBinding.CreateGeomBindTransformAttr(differenceTransform)
                 if skin.skeleton.usdSkeleton is not None:
@@ -1065,7 +1065,7 @@ class glTFConverter:
         # bind material to mesh
         if 'material' in gltfPrimitive:
             materialIdx = gltfPrimitive['material']
-            UsdShade.MaterialBindingAPI(usdMesh.GetPrim()).Bind(self.usdMaterials[materialIdx])
+            UsdShade.MaterialBindingAPI.Apply(usdMesh.GetPrim()).Bind(self.usdMaterials[materialIdx])
 
             gltfMaterial = self.gltf['materials'][materialIdx]
             if 'doubleSided' in gltfMaterial and gltfMaterial['doubleSided'] == True:

@@ -102,6 +102,26 @@ def test_damaged_helmet_embeds_textures():
     assert p["meshes"] >= 1
 
 
+# ---- ARKit compliance (B4): Apple's own validator must pass every fixture ----
+
+@pytest.mark.parametrize("name", [
+    "BoxAnimated", "CesiumMan", "AnimatedMorphCube", "Fox", "Box", "DamagedHelmet",
+])
+def test_arkit_checker_passes(name):
+    import subprocess
+    from conftest import ENGINE_PYTHON, REPO_ROOT
+    glb = fetch_fixture(name)
+    out, code, _ = convert(glb, name + "_arkit")
+    assert code == 0
+    checker = os.path.join(REPO_ROOT, "engine", "native", "realityConvertChecker.py")
+    proc = subprocess.run(
+        [ENGINE_PYTHON, checker, out],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, \
+        "usdARKitChecker failed for %s:\n%s%s" % (name, proc.stdout, proc.stderr)
+
+
 # ---- failure containment (batch mode relies on this) --------------------------
 
 def test_corrupt_input_fails_cleanly():

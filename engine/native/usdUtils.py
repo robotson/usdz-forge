@@ -321,10 +321,11 @@ class Material:
             uvReader = UsdShade.Shader.Define(usdStage, uvReaderPath)
             uvReader.CreateIdAttr('UsdPrimvarReader_float2')
             if uvInput != None:
-                # token inputs:varname.connect = </cubeMaterial.inputs:frame:stPrimvarName>
-                uvReader.CreateInput('varname', Sdf.ValueTypeNames.Token).ConnectToSource(uvInput)
+                # string inputs:varname.connect = </cubeMaterial.inputs:frame:stPrimvarName>
+                # (modern UsdPrimvarReader spec: varname is string, not token)
+                uvReader.CreateInput('varname', Sdf.ValueTypeNames.String).ConnectToSource(uvInput)
             else:
-                uvReader.CreateInput('varname',Sdf.ValueTypeNames.Token).Set(map.texCoordSet)
+                uvReader.CreateInput('varname', Sdf.ValueTypeNames.String).Set(map.texCoordSet)
             uvReader.CreateOutput('result', Sdf.ValueTypeNames.Float2)
 
         # create texture shader node
@@ -404,8 +405,8 @@ class Material:
             channels = map.channels if len(map.channels) == len(defaultChannels) else defaultChannels
             uvInput = None
             if inputName == InputName.normal:
-                # token inputs:frame:stPrimvarName = "st"
-                uvInput = usdMaterial.CreateInput('frame:stPrimvarName', Sdf.ValueTypeNames.Token)
+                # string inputs:frame:stPrimvarName = "st" (matches varname's string type)
+                uvInput = usdMaterial.CreateInput('frame:stPrimvarName', Sdf.ValueTypeNames.String)
                 uvInput.Set(map.texCoordSet)
             matPath = str(usdMaterial.GetPath())
             textureShader = self._makeUsdUVTexture(matPath, map, inputName, channels, uvInput, usdStage)
@@ -550,7 +551,9 @@ class Skeleton:
         jointIndex = self.getJointIndex(joint)
         if jointIndex == -1:
             return
-        usdSkelBinding = UsdSkel.BindingAPI(usdMesh)
+        # Apply (not just construct) so the schema is recorded — required by
+        # modern USD validation (SkelBindingAPIAppliedChecker).
+        usdSkelBinding = UsdSkel.BindingAPI.Apply(usdMesh.GetPrim())
 
         usdSkelBinding.CreateJointIndicesPrimvar(True, 1).Set([jointIndex])
         usdSkelBinding.CreateJointWeightsPrimvar(True, 1).Set([1])
@@ -568,7 +571,7 @@ class Skeleton:
             printWarning('trying to assign Skeletal Animation before USD Skeleton has been created.')
             return
 
-        usdSkelBinding = UsdSkel.BindingAPI(self.usdSkeleton)
+        usdSkelBinding = UsdSkel.BindingAPI.Apply(self.usdSkeleton.GetPrim())
         usdSkelBinding.CreateAnimationSourceRel().AddTarget(usdSkelAnim.GetPath())
         self.usdSkelAnim = usdSkelAnim
 

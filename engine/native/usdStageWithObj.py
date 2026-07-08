@@ -283,9 +283,9 @@ def createMesh(objData, geomPath, group, groupName, stage):
         if 0 <= materialIndex and materialIndex < len(objData.usdMaterials):
             if objData.verbose:
                 print('  material:', objData.materials[materialIndex])
-            UsdShade.MaterialBindingAPI(mesh).Bind(objData.usdMaterials[materialIndex])
+            UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(objData.usdMaterials[materialIndex])
     else:
-        bindingAPI = UsdShade.MaterialBindingAPI(mesh)
+        bindingAPI = UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim())
         for subset in group.subsets:
             materialIndex = subset.materialIndex
             if 0 <= materialIndex and materialIndex < len(objData.usdMaterials) and len(subset.faces) > 0:
@@ -294,7 +294,7 @@ def createMesh(objData, geomPath, group, groupName, stage):
                 if objData.verbose:
                     print('  subset:', subsetName, 'faces:', len(subset.faces))
                 usdSubset = UsdShade.MaterialBindingAPI.CreateMaterialBindSubset(bindingAPI, subsetName, Vt.IntArray(subset.faces))
-                UsdShade.MaterialBindingAPI(usdSubset).Bind(objData.usdMaterials[materialIndex])
+                UsdShade.MaterialBindingAPI.Apply(usdSubset.GetPrim()).Bind(objData.usdMaterials[materialIndex])
 
 
 def linesContinuation(fileHandle):
