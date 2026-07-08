@@ -21,8 +21,12 @@ renderers *play* it. Record results here per release / iOS version.
 
 - MorphStressTest (8 targets) on-device — do simultaneous morph targets actually blend?
 - Fox (multi-clip) — confirm which clip Quick Look plays
-- **Skinned + morph on one mesh** — the classic real-character composite; needs a real
-  rig (no public fixture exists). Highest-value device test for the murals work.
+- **Skinned + morph playing TOGETHER** — convert `tests/vendored/RobotExpressive.glb`
+  and put it on a phone. The engine binds the `Dance` clip (first clip), which drives
+  joints AND blendshape weights simultaneously (81 samples each — CI-verified in the
+  data). The open question only a device answers: does Quick Look render skeletal
+  motion and morph motion at the same time, or does one win? Highest-value device
+  test for real characters.
 - Orientation spot-check on a directional asset (Fox/CesiumMan) — no flips in AR
   (CI asserts Y-up metadata; eyes confirm the look)
 - Batch outputs — a folder run through batch opens identically to single-file conversions

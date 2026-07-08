@@ -102,6 +102,39 @@ def test_damaged_helmet_embeds_textures():
     assert p["meshes"] >= 1
 
 
+# ---- Tier 1b: skinned + morph composite (the real-character case) -------------
+
+def test_robot_expressive_skin_and_morph_in_same_clip():
+    """Skeleton AND blendshapes driven by one clip — the real-character
+    scenario (body via bones, face via morphs) that no Khronos sample covers.
+    The 'Dance' clip must carry joint rotations AND blendshape weights."""
+    import conftest
+    out, code, log = convert(
+        os.path.join(conftest.VENDORED_DIR, "RobotExpressive.glb"), "RobotExpressive")
+    assert code == 0
+    p = profile(out)
+    assert p["skeletons"] >= 1
+    assert len(p["blendshapes"]) >= 1
+    assert len(p["skel_anims"]) == 14, "all 14 clips should be authored"
+    composite = [a for a in p["skel_anims"]
+                 if a["rot_samples"] > 1 and a["blend_weight_samples"] > 1]
+    assert composite, "no clip drives joints AND blendshape weights together"
+
+
+def test_rpm_avatar_skeleton_and_morphs_coexist():
+    """Ready Player Me avatar: full body skeleton + the 72-target ARKit facial
+    morph set (268 BlendShape prims across 10 meshes). Authoring a large morph
+    set must not drop the skeleton, and vice versa."""
+    import conftest
+    out, code, log = convert(
+        os.path.join(conftest.VENDORED_DIR, "brunette-t.glb"), "brunette_t")
+    assert code == 0
+    p = profile(out)
+    assert p["skeletons"] >= 1, "skeleton dropped"
+    assert len(p["blendshapes"]) >= 72, "ARKit morph set incomplete"
+    assert "morph targets detected" in log
+
+
 # ---- expanded battery: rigs, robustness, draco, orientation -------------------
 
 def test_recursive_skeletons_converts():

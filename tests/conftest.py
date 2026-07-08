@@ -8,6 +8,7 @@ import pytest
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(TESTS_DIR)
 FIXTURES_DIR = os.path.join(TESTS_DIR, "fixtures")
+VENDORED_DIR = os.path.join(TESTS_DIR, "vendored")  # committed, not fetched
 OUTPUT_DIR = os.path.join(TESTS_DIR, "output")
 
 ENGINE_PYTHON = os.path.join(REPO_ROOT, "engine", "python", "bin", "python3.14")

@@ -23,6 +23,7 @@ def profile(path):
         "skel_anims": [],
         "xform_anim_ops": 0,
         "blendshapes": [],
+        "skeletons": 0,
         "meshes": 0,
         "zip_files": [],
     }
@@ -30,6 +31,8 @@ def profile(path):
     for prim in stage.Traverse():
         if prim.IsA(UsdGeom.Mesh):
             out["meshes"] += 1
+        if prim.IsA(UsdSkel.Skeleton):
+            out["skeletons"] += 1
         if prim.GetTypeName() == "SkelAnimation":
             anim = UsdSkel.Animation(prim)
             out["skel_anims"].append({
