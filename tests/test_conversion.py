@@ -102,6 +102,21 @@ def test_damaged_helmet_embeds_textures():
     assert p["meshes"] >= 1
 
 
+# ---- failure containment (batch mode relies on this) --------------------------
+
+def test_corrupt_input_fails_cleanly():
+    """A bad file must fail with a nonzero exit and no output — never hang or
+    'succeed'. The app's batch mode catches this per file and continues."""
+    import conftest
+    os.makedirs(conftest.FIXTURES_DIR, exist_ok=True)
+    bad = os.path.join(conftest.FIXTURES_DIR, "corrupt.glb")
+    with open(bad, "wb") as fh:
+        fh.write(b"this is definitely not a valid glb file")
+    out, code, log = convert(bad, "corrupt")
+    assert code != 0, "corrupt input reported success"
+    assert not os.path.exists(out), "corrupt input still produced an output file"
+
+
 # ---- package integrity (every fixture) ----------------------------------------
 
 @pytest.mark.parametrize("name", [
