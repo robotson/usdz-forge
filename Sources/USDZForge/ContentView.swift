@@ -107,7 +107,7 @@ struct ContentView: View {
             if let log = selectedItem?.result?.log, !log.isEmpty { logView(log) }
         }
         .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let update = availableUpdate {
                 updateBanner(update)
@@ -153,6 +153,10 @@ struct ContentView: View {
                     Text(isTargeted ? "Release to convert"
                          : "Drag 3D models here — files or folders")
                         .font(items.isEmpty ? .headline : .subheadline)
+                    if items.isEmpty {
+                        Text(".glb · .gltf · .obj")
+                            .font(.caption)
+                    }
                 }
                 .foregroundStyle(.secondary)
             }
@@ -212,9 +216,6 @@ struct ContentView: View {
                     .font(.headline)
             } else if let item = items.first {
                 singleStatus(item)
-            } else {
-                Text("Drop .glb, .gltf, or .obj files to convert")
-                    .font(.headline)
             }
 
             if let result = selectedItem?.result {
