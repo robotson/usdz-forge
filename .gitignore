@@ -1,0 +1,24 @@
+# Build artifacts
+.build/
+dist/
+*.usdz
+
+# Bundled engine runtime — fetched by engine/setup-engine.sh, never committed
+engine/python/
+engine/venv/
+engine/vendor-cpython-*.tar.gz
+
+# Reference clone (not part of the shippable app)
+engine/usd_from_gltf/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Private / internal notes — never ship
+*PRIVATE*
+*private*

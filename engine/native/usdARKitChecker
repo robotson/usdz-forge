@@ -1,0 +1,124 @@
+#!/usr/bin/python
+
+import subprocess, sys, os, argparse
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+import usd_bootstrap
+from pxr import *
+from validateMesh import validateMesh
+from validateMaterial import validateMaterial
+
+# The GUI validates intermediate .usdc before USDZ packaging. External texture
+# references are normal at that stage and resolve once embedded in the .usdz.
+LOOSE_USD_IGNORED_CODES = {
+    'PXR_MissingReferenceChecker',
+    'PXR_TextureChecker',
+    'PXR_ARKitPackageEncapsulationChecker',
+    'PXR_CompressionChecker',
+    'PXR_ByteAlignmentChecker',
+}
+
+# USDZ files from other exporters (or older Reality Converter exports) may use
+# NodeGraph materials and UsdTransform2d shaders that fail ARKit deployment
+# rules but still preview fine in Reality Converter.
+USDZ_PREVIEW_IGNORED_CODES = {
+    'PXR_ARKitPrimTypeChecker',
+    'PXR_ARKitShaderChecker',
+}
+
+WARNING_CODE_PREFIX = 'WRN_'
+
+
+USD_EXTENSIONS = ('.usd', '.usda', '.usdc', '.usdz')
+
+
+def isUsdFile(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in USD_EXTENSIONS
+
+
+def isLooseUsdFile(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in ('.usd', '.usda', '.usdc')
+
+
+def isUsdzFile(filename):
+    return os.path.splitext(filename)[1].lower() == '.usdz'
+
+
+def isWarningCode(code):
+    return code and code.startswith(WARNING_CODE_PREFIX)
+
+
+def filterErrorData(filename, errorData):
+    filtered = [e for e in errorData if not isWarningCode(e.get('code'))]
+    if isLooseUsdFile(filename):
+        filtered = [e for e in filtered if e.get('code') not in LOOSE_USD_IGNORED_CODES]
+    if isUsdzFile(filename):
+        filtered = [e for e in filtered if e.get('code') not in USDZ_PREVIEW_IGNORED_CODES]
+    return filtered
+
+
+def validateFile(file, verbose, errorData):
+    stage = Usd.Stage.Open(file)
+    success = True
+    predicate = Usd.TraverseInstanceProxies(Usd.PrimIsActive & Usd.PrimIsDefined & ~Usd.PrimIsAbstract)
+    for prim in stage.Traverse(predicate):
+        if prim.GetTypeName() == "Mesh":
+            success = validateMesh(prim, verbose, errorData) and success
+        if prim.GetTypeName() == "Material":
+            success = validateMaterial(prim, verbose, errorData) and success
+    return success
+
+def runValidators(filename, verboseOutput, errorData):
+    checker = UsdUtils.ComplianceChecker(arkit=True, 
+            skipARKitRootLayerCheck=False, rootPackageOnly=False, 
+            skipVariants=False, verbose=False)
+
+    checker.CheckCompliance(filename)
+    errors = checker.GetErrors()
+    failedChecks = checker.GetFailedChecks()
+    for rule in checker._rules:
+        error = rule.__class__.__name__
+        failures = rule.GetFailedChecks()
+        if len(failures) > 0:
+            errorData.append({ "code": "PXR_" + error })
+            errors.append(error)
+
+    mdlValidation = validateFile(filename, verboseOutput, errorData)
+    errorData[:] = filterErrorData(filename, errorData)
+
+    success = mdlValidation and len(errorData) == 0
+    if verboseOutput:
+        print
+    print("usdARKitChecker:", ("[Pass]" if success else "[Fail]"), filename)
+    return success
+
+def main(argumentList, outErrorList=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--verbose", "-v", action='store_true', help="Verbose mode.")
+    parser.add_argument('files', nargs='*')
+    args=parser.parse_args(argumentList)
+
+    verboseOutput = args.verbose
+    totalSuccess = True
+    for filename in args.files:
+        if not isUsdFile(filename):
+            if outErrorList is not None:
+                outErrorList.append({"file": filename, "errors": []})
+            continue
+        errorData = []
+        passed = runValidators(filename, verboseOutput, errorData)
+        if outErrorList is not None:
+        	outErrorList.append({ "file": filename, "errors": errorData })
+        totalSuccess = totalSuccess and passed and len(errorData) == 0
+
+    if totalSuccess:
+        return 0
+    else:
+        return 1
+
+if __name__ == '__main__':
+	argumentList = sys.argv[1:]
+	sys.exit(main(argumentList))
