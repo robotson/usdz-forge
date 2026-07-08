@@ -26,6 +26,41 @@ historically unreliable, so even a semantically perfect file may not animate
 on-device. Until on-device playback is confirmed, the in-app morph warning
 stays (softened to "authored but may not play in Quick Look").
 
+## Gold-standard findings (2026-07-08, all verified empirically)
+
+**No converter oracle exists among our peers.** Apple's usdzconvert 0.62 has zero
+morph code, and Google's usd_from_gltf — the purpose-built Quick Look converter —
+has `// TODO: Morph targets.` + `UFG_WARN_MORPH_TARGETS_UNSUPPORTED`
+(convert/converter.cc:613). Both industry GLB→USDZ tools warn-and-continue,
+i.e. exactly our A1 behavior. Implementing A2 exceeds both.
+
+**Blender 4.5 IS a working gold standard.** Headless
+(`blender --background --python`) GLB→USD of AnimatedMorphCube authors:
+
+```
+SkelRoot                              <- synthesized (glTF has no skeleton!)
+├─ Mesh [SkelBindingAPI, MaterialBindingAPI]
+│   ├─ BlendShape "thin"   (24 offsets + explicit pointIndices)
+│   └─ BlendShape "angle"        <- BlendShape prims are CHILDREN of the mesh
+│   skel:blendShapes = [thin, angle]  + skel:blendShapeTargets rel
+│   skel:skeleton -> ../Skel
+└─ Skeleton "Skel" [SkelBindingAPI]   <- trivial, jointless host
+    └─ SkelAnimation (blendShapes + per-frame baked blendShapeWeights)
+```
+
+This settles the morph-only-mesh question: synthesize a SkelRoot + jointless
+Skeleton, put BlendShapes under the mesh, weights on a SkelAnimation bound via
+the skeleton. (Also note Blender bakes weights per-frame; we can author the
+sparse glTF keys directly.)
+
+**The Tier-2 harness is validated against Blender.** Its math reproduces
+Blender's deformed point clouds to **0.000000 worst error over 100 keyframes**,
+after normalizing two things that differ in Blender's output but won't in ours:
+vertex order (Blender permutes; Apple's engine reads accessors in order) and
+stage up-axis (Blender exports Z-up; we author Y-up). Canonical
+AnimatedMorphCube numbers: 24 verts, 2 targets (thin max |offset| 0.0189,
+angle 0.0199), 127 weight keys over 4.20s, weights peak at 1.0.
+
 ## Implementation sketch (usdStageWithGlTF.py)
 
 1. **Parse:** mesh `primitives[].targets` (POSITION/NORMAL displacement
