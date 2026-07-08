@@ -1,5 +1,7 @@
 # USDZ Forge
 
+[![tests](https://github.com/robotson/usdz-forge/actions/workflows/tests.yml/badge.svg)](https://github.com/robotson/usdz-forge/actions/workflows/tests.yml)
+
 A small, native macOS app that converts **GLB / glTF / OBJ → animated USDZ** by drag-and-drop,
 with a live 3D preview. It's a modern, self-contained successor to Apple's discontinued
 **Reality Converter**.

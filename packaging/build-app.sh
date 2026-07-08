@@ -41,6 +41,12 @@ echo "==> Bundle engine: standalone python + native scripts"
 ditto --norsrc --noextattr "$ENGINE/python" "$APP/Contents/Resources/engine/python"
 ditto --norsrc --noextattr "$ENGINE/native" "$APP/Contents/Resources/engine/native"
 
+echo "==> Strip test-only packages (pytest etc. must never ship in the bundle)"
+SITE="$APP/Contents/Resources/engine/python/lib/python3.14/site-packages"
+rm -rf "$SITE/pytest" "$SITE/_pytest" "$SITE/pluggy" "$SITE/iniconfig" \
+  "$SITE/pygments" "$SITE"/pytest-* "$SITE"/pluggy-* "$SITE"/iniconfig-* \
+  "$SITE"/pygments-* 2>/dev/null || true
+
 echo "==> Strip caches to shrink bundle"
 find "$APP/Contents/Resources/engine" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$APP/Contents/Resources/engine" -name "*.pyc" -delete 2>/dev/null || true

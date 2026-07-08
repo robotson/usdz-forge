@@ -1,0 +1,41 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  regression:
+    # arm64 runner — matches the shipped engine (Apple Silicon only).
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache engine runtime
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: engine/python
+          key: engine-${{ runner.os }}-${{ hashFiles('engine/setup-engine.sh') }}
+
+      - name: Bootstrap engine (relocatable CPython + OpenUSD)
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        run: ./engine/setup-engine.sh
+
+      - name: Install pytest into engine interpreter
+        run: ./engine/python/bin/python3.14 -m pip install --isolated --quiet pytest
+
+      - name: Cache test fixtures (Khronos sample assets)
+        uses: actions/cache@v4
+        with:
+          path: tests/fixtures
+          key: fixtures-${{ hashFiles('tests/test_conversion.py') }}
+
+      - name: Run regression suite
+        run: ./engine/python/bin/python3.14 -m pytest tests -v --tb=short
+
+      - name: Build app (universal)
+        run: swift build -c release --arch arm64 --arch x86_64
