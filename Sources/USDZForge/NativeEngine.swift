@@ -57,7 +57,33 @@ struct NativeEngine: ConversionEngine {
         return ConversionResult(
             outputURL: output,
             log: LogCleaner.clean(log),
-            hasAnimation: USDZInspector.hasAnimation(at: output)
+            hasAnimation: probeAnimation(output)
         )
+    }
+
+    /// Ask USD (via the bundled interpreter) whether the output actually carries
+    /// animation. Reliable for skeletal/UsdSkel animation in binary crate files,
+    /// where a raw byte scan for "timeSamples" gives false negatives.
+    private func probeAnimation(_ usdz: URL) -> Bool? {
+        let probe = scriptURL.deletingLastPathComponent()
+            .appendingPathComponent("probe_usdz.py")
+        guard FileManager.default.fileExists(atPath: probe.path) else { return nil }
+
+        let process = Process()
+        process.executableURL = pythonURL
+        process.arguments = [probe.path, usdz.path]
+        let out = Pipe()
+        process.standardOutput = out
+        process.standardError = Pipe() // discard interpreter noise
+        do { try process.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        switch String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "1": return true
+        case "0": return false
+        default:  return nil
+        }
     }
 }
