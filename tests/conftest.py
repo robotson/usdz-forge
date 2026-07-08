@@ -17,6 +17,18 @@ KHRONOS_BASE = ("https://raw.githubusercontent.com/KhronosGroup/"
                 "glTF-Sample-Assets/main/Models/{name}/glTF-Binary/{name}.glb")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def clean_output_dir():
+    """Wipe tests/output at session START (not end): every run gets a clean
+    slate — no orphans from renamed tests — while the latest run's artifacts
+    stay on disk for post-mortem inspection. (Fixtures cache is kept: those
+    are downloads, not products.)"""
+    import shutil
+    shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    yield
+
+
 def fetch_fixture(name):
     """Download a Khronos sample GLB once; cache under tests/fixtures/."""
     os.makedirs(FIXTURES_DIR, exist_ok=True)
