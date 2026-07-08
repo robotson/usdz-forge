@@ -28,7 +28,8 @@ the app** — nothing needs to be installed on the target machine.
 ## Requirements
 
 - macOS 13 (Ventura) or later
-- Apple Silicon (M1 or newer)
+- Apple Silicon (M1 or newer) for conversion. On Intel Macs the app launches
+  and explains the limitation (the bundled engine is arm64-only).
 
 ## Install (prebuilt)
 

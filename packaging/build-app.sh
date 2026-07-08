@@ -17,7 +17,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="/private/tmp/usdzforge-build"
 APP="$BUILD/USDZ Forge.app"
-BIN="$ROOT/.build/release/USDZForge"
+# Prefer the universal (arm64 + x86_64) binary so Intel Macs can at least
+# launch and see a clear "requires Apple Silicon" message instead of macOS's
+# opaque "cannot be opened". Build it with:
+#   swift build -c release --arch arm64 --arch x86_64
+BIN="$ROOT/.build/apple/Products/Release/USDZForge"
+if [[ ! -f "$BIN" ]]; then
+  BIN="$ROOT/.build/release/USDZForge"
+fi
 ENGINE="$ROOT/engine"
 
 echo "==> Fresh bundle in /private/tmp (avoids iCloud xattr breakage)"

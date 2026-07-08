@@ -90,12 +90,32 @@ struct ContentView: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 
+    /// True when the x86_64 slice is executing — i.e. an Intel Mac (the arm64
+    /// slice always wins on Apple Silicon). The bundled Python/USD engine is
+    /// arm64-only, so conversion can't work here; say so instead of failing
+    /// with an opaque spawn error.
+    private var isIntelHost: Bool {
+        #if arch(x86_64)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private var header: some View {
         VStack(spacing: 4) {
             Text("USDZ Forge").font(.system(size: 34, weight: .bold, design: .rounded))
-            Text(engine.displayName)
-                .font(.caption)
-                .foregroundStyle(engine.isAvailable ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+            if isIntelHost {
+                Label("Intel Mac detected — this build's conversion engine requires Apple Silicon (M1 or newer). See the GitHub README for alternatives.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text(engine.displayName)
+                    .font(.caption)
+                    .foregroundStyle(engine.isAvailable ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+            }
         }
     }
 
@@ -120,7 +140,7 @@ struct ContentView: View {
             .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
                 handleDrop(providers)
             }
-            .disabled(isConverting)
+            .disabled(isConverting || isIntelHost)
     }
 
     private var statusBlock: some View {
