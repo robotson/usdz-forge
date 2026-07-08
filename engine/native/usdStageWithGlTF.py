@@ -1170,8 +1170,17 @@ class glTFConverter:
                     if self.legacyModifier is not None:
                         self.legacyModifier.addSkelAnimToMesh(usdMesh, skin.skeleton)
         elif skeleton is not None:
+            # geomBindTransform must live in the same space as the skeleton's
+            # bindTransforms: the skeleton root's PARENT space (skin IBMs cancel
+            # every ancestor transform, including armature scale). A raw world
+            # matrix double-applies those ancestors — three.js/Blender armatures
+            # carry scale=100, which rendered rigid meshes 100x too big and made
+            # Quick Look show a blank scene (you were inside the model).
             meshNodeWorldMatrix = self.getWorldTransform(nodeIdx)
-            skeleton.bindRigidDeformation(str(nodeIdx), usdMesh, meshNodeWorldMatrix)
+            rootParentIdx = self.getParent(int(skeleton.getRoot()))
+            skelSpaceMatrix = self.getWorldTransform(rootParentIdx)
+            relativeMatrix = meshNodeWorldMatrix * skelSpaceMatrix.GetInverse()
+            skeleton.bindRigidDeformation(str(nodeIdx), usdMesh, relativeMatrix)
             if self.legacyModifier is not None:
                 self.legacyModifier.addSkelAnimToMesh(usdMesh, skeleton)
 

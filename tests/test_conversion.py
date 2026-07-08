@@ -120,6 +120,23 @@ def test_robot_expressive_skin_and_morph_in_same_clip():
                  if a["rot_samples"] > 1 and a["blend_weight_samples"] > 1]
     assert composite, "no clip drives joints AND blendshape weights together"
 
+    # Regression guard: rigid meshes bound with WORLD-space geomBindTransforms
+    # double-applied the armature's scale=100 (robot rendered 100x too big ->
+    # blank AR view). Bind transforms must be armature-relative: scale ~= 1.
+    from pxr import Usd, UsdGeom, UsdSkel, Gf
+    stage = Usd.Stage.Open(out)
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        gbt = UsdSkel.BindingAPI(prim).GetGeomBindTransformAttr().Get()
+        if gbt is None:
+            continue
+        scale = Gf.Transform(gbt).GetScale()
+        for component in scale:
+            assert abs(component) < 10, \
+                "geomBindTransform carries ancestor scale (%s on %s) - " \
+                "world/skel space mismatch" % (scale, prim.GetPath())
+
 
 def test_rpm_avatar_skeleton_and_morphs_coexist():
     """Ready Player Me avatar: full body skeleton + the 72-target ARKit facial
