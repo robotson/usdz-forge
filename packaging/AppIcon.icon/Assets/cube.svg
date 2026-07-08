@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Flat isometric cube. No baked lighting/gloss — Liquid Glass adds specular,
+       shadow, and depth at render time. Three solid amber faces. -->
+  <polygon points="512,252 737.2,382 512,512 286.8,382" fill="#FFB84D"/>
+  <polygon points="286.8,382 512,512 512,772 286.8,642" fill="#F0641E"/>
+  <polygon points="737.2,382 737.2,642 512,772 512,512" fill="#C4451A"/>
+</svg>

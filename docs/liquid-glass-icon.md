@@ -15,6 +15,43 @@ Research on adopting macOS 26 (Tahoe) "Liquid Glass" app icons for USDZ Forge.
   Glass wants **flat, un-lit layers** and applies its own material/lighting. So a proper adoption
   means re-authoring the cube as flat layers, not just importing the PNG we have.
 
+## Spike — proven, GUI-free (2026-07-08)
+
+**Update to the TL;DR above:** authoring is NOT GUI-only. We hand-authored a `.icon` and rendered it
+through Apple's real glass shader with `ictool` — no Icon Composer GUI. One source adapts across
+Default / Dark / Tinted:
+
+![Liquid Glass spike](liquid-glass-spike.png)
+
+Source is committed at **`packaging/AppIcon.icon/`** (a folder package): `icon.json` (flat fill + one
+glass group + the cube layer) and `Assets/cube.svg` (a **flat** isometric cube — no baked lighting;
+the shader adds specular, shadow, depth).
+
+Recipe (both steps pure CLI):
+
+```bash
+ICTOOL="/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"
+
+# Preview any appearance: Default | Dark | TintedDark (Clear* not supported by ictool)
+"$ICTOOL" packaging/AppIcon.icon --export-image --output-file out.png \
+  --platform macOS --rendition Default --width 1024 --height 1024 --scale 1
+
+# Compile into the bundle (produces Assets.car + a legacy .icns fallback)
+xcrun actool packaging/AppIcon.icon --compile <out-dir> --app-icon AppIcon \
+  --platform macosx --target-device mac --minimum-deployment-target 26.0 \
+  --include-all-app-icons --enable-on-demand-resources NO \
+  --development-region en --output-partial-info-plist /dev/null
+```
+
+`icon.json` keys used: top-level `groups`, `supported-platforms`, `fill` / `fill-specializations`;
+each group has `specular`, `shadow` (`{kind, opacity}`), `translucency` (`{enabled, value}`),
+`blur-material`, `layers`; each layer has `image-name`, `name`, `glass`, optional
+`fill`/`opacity`/`position`. Colors are `"srgb:R,G,B,A"` floats.
+
+**Verdict:** the whole pipeline is CLI-scriptable and drops into `build-app.sh`. The render is clean
+and native, but plainer than the shipped ChatGPT molten icon — next step before adopting is refining
+the flat art (richer colors, a spark layer, maybe two depth groups).
+
 ## What Liquid Glass icons are
 
 - Introduced at WWDC 2025 with the system-wide Liquid Glass redesign; authored in **Icon Composer**
