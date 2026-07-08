@@ -16,6 +16,11 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Generated icon artifacts (produced from an icon master by make-icon.py)
+packaging/AppIcon.iconset/
+packaging/AppIcon.icns
+packaging/icon_master_1024.png
+
 # macOS
 .DS_Store
 
