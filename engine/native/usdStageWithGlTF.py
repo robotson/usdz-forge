@@ -347,7 +347,7 @@ class Accessor:
         self.stride = getInt(bufferView, 'byteStride')
         if self.stride != 0 and self.stride != glTFComponentType(self.componentType).size() * self.components:
             elementsSize = glTFComponentType(self.componentType).size() * self.components
-            data = ''
+            data = b''  # bytes, not str: Py2 relic crashed all strided/interleaved buffers
             for i in range(self.count):
                 start = offset + i * self.stride
                 data += fileContent[start : start + elementsSize]
@@ -1487,6 +1487,18 @@ class glTFConverter:
 
     def makeUsdStage(self):
         if self._loadFailed:
+            return None
+        # Draco-compressed geometry lives inside the extension, not in plain
+        # accessors — the parser cannot read it. Fail with guidance instead of
+        # a KeyError deep in Accessor.
+        extensions = (self.gltf.get('extensionsRequired', [])
+                      + self.gltf.get('extensionsUsed', []))
+        if 'KHR_draco_mesh_compression' in extensions:
+            usdUtils.printError(
+                'this file uses Draco mesh compression '
+                '(KHR_draco_mesh_compression), which is not supported. '
+                'Re-export without Draco, or decompress it first, e.g.: '
+                'npx @gltf-transform/cli copy input.glb output.glb')
             return None
         self._warnMorphTargets()
         self.usdStage = self.asset.makeUsdStage()

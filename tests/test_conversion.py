@@ -102,6 +102,81 @@ def test_damaged_helmet_embeds_textures():
     assert p["meshes"] >= 1
 
 
+# ---- expanded battery: rigs, robustness, draco, orientation -------------------
+
+def test_recursive_skeletons_converts():
+    """Regression: strided/interleaved accessors crashed on a Py2 relic
+    (data = '' instead of b'' in Accessor). RecursiveSkeletons exercises it."""
+    p, _, _ = run("RecursiveSkeletons")
+    assert p["meshes"] == 84
+    assert len(p["skel_anims"]) >= 1
+    assert is_animated(p)
+
+
+@pytest.mark.parametrize("name", ["RiggedFigure", "RiggedSimple"])
+def test_minimal_rigs_keep_animation(name):
+    p, _, _ = run(name)
+    assert len(p["skel_anims"]) >= 1
+    assert is_animated(p)
+
+
+def test_interpolation_modes_convert():
+    """STEP / LINEAR / CUBICSPLINE samplers all convert and animate."""
+    p, _, _ = run("InterpolationTest")
+    assert is_animated(p)
+
+
+def test_sparse_morph_targets_warn_or_author():
+    """MorphPrimitivesTest uses sparse morph accessors. Never silent: either
+    blendshapes were authored, or the sparse-drop warning fired."""
+    glb = fetch_fixture("MorphPrimitivesTest")
+    out, code, log = convert(glb, "MorphPrimitivesTest")
+    assert code == 0
+    p = profile(out)
+    assert p["blendshapes"] or "sparse" in log, \
+        "sparse morphs neither authored nor warned about (silent loss)"
+
+
+@pytest.mark.parametrize("name", ["Lantern", "MaterialsVariantsShoe", "DragonAttenuation"])
+def test_realworld_materials_no_crash(name):
+    """KHR material extensions / heavy PBR: fidelity loss is acceptable,
+    crashing is not."""
+    p, _, _ = run(name)
+    assert p["meshes"] >= 1
+
+
+def test_lantern_package_size():
+    """Mobile web-AR delivery cares about size; flag runaway packages."""
+    glb = fetch_fixture("Lantern")
+    out, code, _ = convert(glb, "Lantern_size")
+    assert code == 0
+    size_mb = os.path.getsize(out) / 1e6
+    assert size_mb < 20, "package unexpectedly huge (%.1f MB)" % size_mb
+
+
+def test_draco_rejected_cleanly():
+    """Draco geometry lives in the extension, not plain accessors — it must
+    fail with actionable guidance, never a KeyError traceback."""
+    vendored = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "vendored", "BoxAnimated_draco.glb")
+    out, code, log = convert(vendored, "draco")
+    assert code != 0, "Draco input reported success"
+    assert not os.path.exists(out)
+    assert "Draco" in log, "no actionable Draco message"
+    assert "Traceback" not in log, "raw stack trace leaked to the user"
+
+
+def test_output_up_axis_is_y():
+    """Guard the original 'orientation was whacked in Preview' complaint:
+    outputs must be Y-up (glTF convention, Quick Look expectation)."""
+    from pxr import Usd, UsdGeom
+    glb = fetch_fixture("CesiumMan")
+    out, code, _ = convert(glb, "CesiumMan_axis")
+    assert code == 0
+    stage = Usd.Stage.Open(out)
+    assert str(UsdGeom.GetStageUpAxis(stage)) == "Y"
+
+
 # ---- ARKit compliance (B4): Apple's own validator must pass every fixture ----
 
 @pytest.mark.parametrize("name", [

@@ -19,6 +19,11 @@ renderers *play* it. Record results here per release / iOS version.
 
 ## Still to spot-check when convenient
 
-- MorphStressTest (8 targets) on-device — heavier blendshape load
+- MorphStressTest (8 targets) on-device — do simultaneous morph targets actually blend?
 - Fox (multi-clip) — confirm which clip Quick Look plays
+- **Skinned + morph on one mesh** — the classic real-character composite; needs a real
+  rig (no public fixture exists). Highest-value device test for the murals work.
+- Orientation spot-check on a directional asset (Fox/CesiumMan) — no flips in AR
+  (CI asserts Y-up metadata; eyes confirm the look)
+- Batch outputs — a folder run through batch opens identically to single-file conversions
 - A large real-world production model (murals pipeline)
