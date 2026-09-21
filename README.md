@@ -73,9 +73,9 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 - **Morph targets / blendshapes are supported**, including sparse target accessors — a capability both Apple's original
   converter and Google's usd_from_gltf lack (they drop morphs entirely). Output is
   validated per-vertex against the glTF spec math and Apple's ARKit validator, and
-  **playback is verified on-device in AR Quick Look** for the earlier non-Draco
-  cases. Draco + sparse-morph output has data-level tests but still needs a
-  fresh on-device playback check.
+  **playback is verified on-device in AR Quick Look**, including Draco-decoded
+  skinning and a sparse-accessor blend shape (21 Sep 2026: a rigged coyote and a
+  morph-target eagle, both converted from Draco input, played correctly on device).
 - **Draco is decoded for `.glb` only.** A plain `.gltf` (separate `.bin`) using
   `KHR_draco_mesh_compression` still fails with the actionable re-export message.
 - **TODO — warn when a rig's rest pose disagrees with its animation.** Many vendor
