@@ -646,7 +646,22 @@ def process(argumentList):
     elif '.gltf' == srcExt or '.glb' == srcExt:
         global usdStageWithGlTF_module
         usdStageWithGlTF_module = importlib.import_module("usdStageWithGlTF")
-        usdStage = usdStageWithGlTF_module.usdStageWithGlTF(srcPath, tmpPath, legacyModifier, copyTextures, parserOut.verbose)
+        gltfSource = srcPath
+        if '.glb' == srcExt:
+            draco_glb = importlib.import_module("draco_glb")
+            expandedPath = os.path.join(tmpFolder, 'draco-expanded.glb')
+            try:
+                if draco_glb.maybe_expand_draco(srcPath, expandedPath):
+                    gltfSource = expandedPath
+                    print('Decoded Draco mesh compression.')
+            except Exception as exc:
+                usdUtils.printError(
+                    'this file uses Draco mesh compression, but it could not be '
+                    'decoded (%s). Re-export without Draco, or decompress it '
+                    'first, e.g.: npx @gltf-transform/cli copy input.glb output.glb' % exc)
+                rmtree(tmpFolder, ignore_errors=True)
+                raise usdUtils.ConvertError()
+        usdStage = usdStageWithGlTF_module.usdStageWithGlTF(gltfSource, tmpPath, legacyModifier, copyTextures, parserOut.verbose)
     elif '.fbx' == srcExt:
         global usdStageWithFbx_module
         usdStageWithFbx_module = importlib.import_module("usdStageWithFbx")
@@ -837,4 +852,3 @@ if __name__ == '__main__':
         errorValue = kConvertErrorReturnValue
 
     sys.exit(errorValue)
-

@@ -5,8 +5,9 @@ Status: **IMPLEMENTED & ON-DEVICE VERIFIED (2026-07-08)** —
 8-target multi-primitive `MorphStressTest`; Apple's `usdARKitChecker` passes the
 output; **AR Quick Look playback confirmed on a real iPhone in AR mode**
 (docs/on-device-checklist.md) — the historical "Quick Look doesn't play
-blendshapes" concern does not apply to this structure. Remaining gap: sparse
-target accessors (dropped with a warning). The stress test also caught a real
+blendshapes" concern does not apply to this structure. Sparse target accessors
+were added in the Draco-support pass (2026-09-16); the CCA eagle compressed/raw
+twin now retains its blend shape and 27 weight samples. The stress test also caught a real
 design bug pre-ship: glTF targets are per-MESH, so multi-primitive meshes must
 bind identical shape names per primitive, not append duplicates.
 

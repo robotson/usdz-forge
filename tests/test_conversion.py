@@ -182,15 +182,13 @@ def test_interpolation_modes_convert():
     assert is_animated(p)
 
 
-def test_sparse_morph_targets_warn_or_author():
-    """MorphPrimitivesTest uses sparse morph accessors. Never silent: either
-    blendshapes were authored, or the sparse-drop warning fired."""
+def test_sparse_morph_targets_are_authored():
+    """MorphPrimitivesTest uses sparse target accessors; keep its shapes."""
     glb = fetch_fixture("MorphPrimitivesTest")
     out, code, log = convert(glb, "MorphPrimitivesTest")
     assert code == 0
     p = profile(out)
-    assert p["blendshapes"] or "sparse" in log, \
-        "sparse morphs neither authored nor warned about (silent loss)"
+    assert len(p["blendshapes"]) == 2, log
 
 
 @pytest.mark.parametrize("name", ["Lantern", "MaterialsVariantsShoe", "DragonAttenuation"])
@@ -210,16 +208,36 @@ def test_lantern_package_size():
     assert size_mb < 20, "package unexpectedly huge (%.1f MB)" % size_mb
 
 
-def test_draco_rejected_cleanly():
-    """Draco geometry lives in the extension, not plain accessors — it must
-    fail with actionable guidance, never a KeyError traceback."""
+def test_draco_converts_and_keeps_animation():
+    """Draco accessors become plain glTF accessors before USD conversion."""
     vendored = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "vendored", "BoxAnimated_draco.glb")
     out, code, log = convert(vendored, "draco")
-    assert code != 0, "Draco input reported success"
+    assert code == 0, log
+    assert os.path.exists(out)
+    assert "Decoded Draco" in log
+    p = profile(out)
+    assert p["meshes"] >= 1
+    assert p["xform_anim_ops"] > 0
+
+
+def test_draco_decoder_unavailable_fails_cleanly(monkeypatch):
+    """Missing decode capability leaves the existing actionable failure path."""
+    monkeypatch.setenv("USDZ_FORGE_DRACO_DISABLE", "1")
+    vendored = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "vendored", "BoxAnimated_draco.glb")
+    out, code, log = convert(vendored, "draco_unavailable")
+    assert code != 0
     assert not os.path.exists(out)
-    assert "Draco" in log, "no actionable Draco message"
+    assert "Draco" in log and "Re-export without Draco" in log
     assert "Traceback" not in log, "raw stack trace leaked to the user"
+
+
+def test_plain_glb_does_not_need_draco_decoder(monkeypatch):
+    monkeypatch.setenv("USDZ_FORGE_DRACO_DISABLE", "1")
+    out, code, log = convert(fetch_fixture("BoxAnimated"), "plain_without_draco")
+    assert code == 0, log
+    assert profile(out)["xform_anim_ops"] > 0
 
 
 def test_output_up_axis_is_y():

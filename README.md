@@ -25,6 +25,8 @@ the app** — nothing needs to be installed on the target machine.
   morph targets/blendshapes (authored as `UsdSkel.BlendShape`; validated
   per-vertex against the glTF spec math)
 - PBR materials + textures embedded into the package
+- Draco-compressed GLB input (`KHR_draco_mesh_compression`) decoded locally,
+  preserving skeletal animation and morph targets without Node or a compiler
 - Live in-window 3D preview with animation playback (SceneKit)
 - Flags in the UI whether the output actually carries animation
 - Fully self-contained, **Apple-Silicon native (no Rosetta)**
@@ -68,11 +70,26 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 
 - **USDZ / AR Quick Look plays a single animation timeline.** Source files with multiple
   animation clips will keep only one. This is a USDZ format constraint, not a tool bug.
-- **Morph targets / blendshapes are supported** — a capability both Apple's original
+- **Morph targets / blendshapes are supported**, including sparse target accessors — a capability both Apple's original
   converter and Google's usd_from_gltf lack (they drop morphs entirely). Output is
   validated per-vertex against the glTF spec math and Apple's ARKit validator, and
-  **playback is verified on-device in AR Quick Look**. Sparse morph-target accessors
-  are not yet supported (dropped with a warning).
+  **playback is verified on-device in AR Quick Look** for the earlier non-Draco
+  cases. Draco + sparse-morph output has data-level tests but still needs a
+  fresh on-device playback check.
+- **Draco is decoded for `.glb` only.** A plain `.gltf` (separate `.bin`) using
+  `KHR_draco_mesh_compression` still fails with the actionable re-export message.
+- **TODO — warn when a rig's rest pose disagrees with its animation.** Many vendor
+  models carry a default joint pose 90° (or a whole unit scale) away from what their
+  own clip sets at frame 0. glTF viewers autoplay, so nobody sees it; USD keeps that
+  default as the skeleton's rest pose, and any viewer that does *not* play the clip —
+  Xcode's preview, Finder thumbnails, an engine importing without playback — draws the
+  model nose-down, tiny, or underground. Found in the wild: nine of nine rigged animals
+  in a museum delivery, reported by the client after release. The converter is behaving
+  correctly by carrying the source across faithfully, so the fix is to **tell the truth
+  about it**, in the same spirit as the existing animation probe: flag the disagreement
+  after conversion, and offer an opt-in re-base of the rest pose onto frame 0 (exact for
+  linear blend skinning: transform points and bind matrices by the same matrix, and the
+  animated result is unchanged).
 - Ad-hoc signed builds show a Gatekeeper prompt on first open. For frictionless distribution,
   re-sign with an Apple **Developer ID** identity and notarize (`notarytool` + `stapler`).
 
@@ -81,5 +98,7 @@ USDZFORGE_ENGINE_ROOT="$PWD/engine" swift run
 - App code: MIT (see [LICENSE](LICENSE)).
 - Conversion engine: Apple's `usdzconvert` (© Apple Inc., MIT) — ported to Python 3 / modern
   OpenUSD. Apple's original notice is retained in `engine/native/LICENSE.txt`.
+- Draco decoder: Google Draco v1.5.7 (Apache-2.0), vendored with its license and
+  provenance in `engine/native/vendor/draco/`.
 - [OpenUSD](https://openusd.org) via the `usd-core` wheel.
 - Relocatable interpreter via [python-build-standalone](https://github.com/astral-sh/python-build-standalone).

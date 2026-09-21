@@ -331,29 +331,60 @@ class Accessor:
         self.componentType = int(gltfAccessor['componentType'])
         fmt = glTFComponentType(self.componentType).unpackFormat()
 
-        bufferViewIdx = gltfAccessor['bufferView']
-        bufferView = gltfData.gltf['bufferViews'][bufferViewIdx]
-        byteLength = bufferView['byteLength']
-        byteOffset = getInt(bufferView, 'byteOffset')
-        bufferIdx = bufferView['buffer']
-
-        fileContent = gltfData.buffers[bufferIdx]
-        offset = accessorByteOffset + byteOffset
-
         self.count = gltfAccessor['count']
         self.type = gltfAccessor['type']
         self.components = numOfComponents(self.type)
+        element_size = glTFComponentType(self.componentType).size() * self.components
 
-        self.stride = getInt(bufferView, 'byteStride')
-        if self.stride != 0 and self.stride != glTFComponentType(self.componentType).size() * self.components:
-            elementsSize = glTFComponentType(self.componentType).size() * self.components
-            data = b''  # bytes, not str: Py2 relic crashed all strided/interleaved buffers
-            for i in range(self.count):
-                start = offset + i * self.stride
-                data += fileContent[start : start + elementsSize]
-            self.data = numpy.frombuffer(data, fmt, self.count * self.components)
+        if 'bufferView' not in gltfAccessor:
+            # A sparse accessor may omit its base view: the base is all zeroes.
+            self.stride = 0
+            self.data = numpy.frombuffer(bytes(self.count * element_size), fmt,
+                                         self.count * self.components)
         else:
-            self.data = numpy.frombuffer(fileContent, fmt, self.count * self.components, offset)
+            bufferView = gltfData.gltf['bufferViews'][gltfAccessor['bufferView']]
+            fileContent = gltfData.buffers[bufferView['buffer']]
+            offset = accessorByteOffset + getInt(bufferView, 'byteOffset')
+            self.stride = getInt(bufferView, 'byteStride')
+            if self.stride != 0 and self.stride != element_size:
+                data = b''  # bytes, not str: Py2 relic crashed interleaved buffers
+                for i in range(self.count):
+                    start = offset + i * self.stride
+                    data += fileContent[start:start + element_size]
+                self.data = numpy.frombuffer(data, fmt, self.count * self.components)
+            else:
+                self.data = numpy.frombuffer(fileContent, fmt,
+                                             self.count * self.components, offset)
+
+        if 'sparse' in gltfAccessor:
+            sparse = gltfAccessor['sparse']
+            dense = bytearray(self.data.tobytes() if _HAS_NUMPY else
+                              self.data._array.tobytes())
+            index_spec = sparse['indices']
+            index_view = gltfData.gltf['bufferViews'][index_spec['bufferView']]
+            index_content = gltfData.buffers[index_view['buffer']]
+            index_type = index_spec['componentType']
+            index_format = {5121: 'B', 5123: 'H', 5125: 'I'}[index_type]
+            index_size = struct.calcsize('<' + index_format)
+            index_offset = (getInt(index_view, 'byteOffset') +
+                            getInt(index_spec, 'byteOffset'))
+            value_spec = sparse['values']
+            value_view = gltfData.gltf['bufferViews'][value_spec['bufferView']]
+            value_content = gltfData.buffers[value_view['buffer']]
+            value_offset = (getInt(value_view, 'byteOffset') +
+                            getInt(value_spec, 'byteOffset'))
+            for i in range(sparse['count']):
+                index = struct.unpack_from('<' + index_format, index_content,
+                                           index_offset + i * index_size)[0]
+                if index >= self.count:
+                    raise ValueError('sparse accessor index out of bounds')
+                start = value_offset + i * element_size
+                if start + element_size > len(value_content):
+                    raise ValueError('sparse accessor values truncated')
+                dense[index * element_size:(index + 1) * element_size] = (
+                    value_content[start:start + element_size])
+            self.data = numpy.frombuffer(bytes(dense), fmt,
+                                         self.count * self.components)
 
 
 
@@ -851,11 +882,6 @@ class glTFConverter:
                 usdUtils.printWarning('morph target %d has no POSITION offsets; dropped.' % i)
                 continue
             accIdx = target['POSITION']
-            if 'sparse' in self.gltf['accessors'][accIdx]:
-                usdUtils.printWarning(
-                    'sparse accessor in morph target %d is not supported; target dropped.' % i)
-                continue
-
             name = None
             if targetNames is not None and i < len(targetNames):
                 name = makeValidPrimName(str(targetNames[i]))
@@ -876,7 +902,7 @@ class glTFConverter:
             usdBlendShape.CreateOffsetsAttr(offsets)
             usdBlendShape.CreatePointIndicesAttr(Vt.IntArray(list(range(acc.count))))
 
-            if 'NORMAL' in target and 'sparse' not in self.gltf['accessors'][target['NORMAL']]:
+            if 'NORMAL' in target:
                 nAcc = Accessor(self, target['NORMAL'])
                 nData = nAcc.data
                 normalOffsets = Vt.Vec3fArray(nAcc.count)
@@ -1497,9 +1523,8 @@ class glTFConverter:
     def _warnMorphTargets(self):
         # Morph targets ARE authored (UsdSkel.BlendShape + blendShapeWeights),
         # exceeding Apple's original usdzconvert 0.62 and Google's usd_from_gltf
-        # (neither implements them). Two caveats still warrant a warning:
-        # sparse target accessors are dropped, and AR Quick Look's blendshape
-        # PLAYBACK is historically unreliable — data-valid != plays-on-device.
+        # (neither implements them). AR Quick Look's blendshape PLAYBACK can
+        # still vary by device — data-valid != plays-on-device.
         hasMorphTargets = any(
             primitive.get('targets')
             for mesh in self.gltf.get('meshes', [])
@@ -1545,4 +1570,3 @@ class glTFConverter:
 def usdStageWithGlTF(gltfPath, usdPath, legacyModifier, copyTextures, verbose):
     converter = glTFConverter(gltfPath, usdPath, legacyModifier, copyTextures, verbose)
     return converter.makeUsdStage()
-
