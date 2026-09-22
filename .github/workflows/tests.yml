@@ -37,5 +37,36 @@ jobs:
       - name: Run regression suite
         run: ./engine/python/bin/python3.14 -m pytest tests -v --tb=short
 
+      # The ARKit checker swallows its exception and reports ERR_CHECKER_CRASH,
+      # writing the real traceback to a log nobody collects. Six of these started
+      # failing on the runner in Sept 2026 while passing locally and while the code
+      # under test was unchanged since July, so print the traceback and the versions
+      # it ran against before guessing again.
+      - name: Checker traceback and environment (on failure)
+        if: failure()
+        run: |
+          echo "=== macOS / Xcode ==="
+          sw_vers; xcodebuild -version 2>/dev/null | head -2
+          echo "=== engine interpreter and OpenUSD ==="
+          ./engine/python/bin/python3.14 -c 'import sys, pxr; from pxr import Usd; print(sys.version); print("usd", Usd.GetVersion())'
+          echo "=== checker log ==="
+          cat /tmp/reality-converter-validation.log 2>/dev/null || echo "(no log written)"
+          echo "=== direct run, unswallowed ==="
+          ./engine/python/bin/python3.14 - <<'PY'
+          import glob, traceback
+          from pxr import UsdUtils
+          target = sorted(glob.glob('tests/output/*_arkit.usdz'))[:1]
+          print('checking', target)
+          for f in target:
+              try:
+                  c = UsdUtils.ComplianceChecker(arkit=True, skipARKitRootLayerCheck=False,
+                                                 rootPackageOnly=False, skipVariants=False, verbose=False)
+                  c.CheckCompliance(f)
+                  print('errors:', c.GetErrors())
+                  print('failed checks:', c.GetFailedChecks())
+              except Exception:
+                  traceback.print_exc()
+          PY
+
       - name: Build app (universal)
         run: swift build -c release --arch arm64 --arch x86_64
