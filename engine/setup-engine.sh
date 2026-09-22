@@ -23,7 +23,14 @@ if [ ! -x "$PY" ]; then
 fi
 
 echo "==> Installing OpenUSD (usd-core) + numpy + Pillow"
-"$PY" -m pip install --isolated --no-warn-script-location usd-core numpy Pillow
+# usd-core is PINNED. Apple's usdARKitChecker calls UsdUtils.ComplianceChecker,
+# which OpenUSD deprecated and then REMOVED in 26.8 -- an unpinned install gives
+# an engine whose checker dies with "module 'pxr.UsdUtils' has no attribute
+# 'ComplianceChecker'". That is how it reached CI in Sept 2026: six checker tests
+# failed on the runner while passing locally, and the July code failed the same
+# way, because the runner resolved a newer wheel than the engine we ship (26.5).
+# TODO: migrate the checker to the Usd Validation Framework, then lift the pin.
+"$PY" -m pip install --isolated --no-warn-script-location "usd-core==26.5" numpy Pillow
 
 echo "==> Verifying"
 "$PY" -c "from pxr import Usd, UsdSkel; print('OpenUSD', Usd.GetVersion())"
