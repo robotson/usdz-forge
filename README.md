@@ -37,6 +37,23 @@ the app** — nothing needs to be installed on the target machine.
 - Apple Silicon (M1 or newer) for conversion. On Intel Macs the app launches
   and explains the limitation (the bundled engine is arm64-only).
 
+### What that claim is worth
+
+Reality Converter stopped working when Apple removed Python 2.7 in **macOS 12.3**, so the
+people who need this start at 12.3. This app asks for 13.0, and here is exactly how much
+of that range is checked:
+
+| macOS | status |
+|---|---|
+| 26 | **verified** — full suite in CI on every push |
+| 15 | **verified** — full suite in CI on every push |
+| 14 | builds; not run. GitHub retires the macos-14 image in Nov 2026 |
+| 13 (the declared floor) | **compile-enforced only.** `Package.swift` targets 13.0, so CI's build step fails if any API newer than 13 creeps in. Nobody has run the app on 13 |
+| 12.3–12.7 | **not supported.** One SwiftUI call (`windowResizability`, 13+) is the only blocker; the bundled Python targets 11.0 and OpenUSD targets 10.15, so the engine itself would run. Gating that one modifier would lower the floor to 12 — unverifiable, since no hosted arm64 runner exists below 15 |
+
+Runtime testing below 15 needs a local VM (Apple Silicon can host macOS 12+ guests) or paid
+Mac cloud. If you run it somewhere in the untested range, a report either way is welcome.
+
 ## Install (prebuilt)
 
 Download the latest `USDZ-Forge.zip` from Releases, unzip, and move `USDZ Forge.app` to

@@ -8,8 +8,16 @@ on:
 
 jobs:
   regression:
-    # arm64 runner — matches the shipped engine (Apple Silicon only).
-    runs-on: macos-15
+    # arm64 runners only — the shipped engine is Apple Silicon. Two versions across a
+    # major boundary is the whole testable range: macos-14 is being retired (Nov 2026)
+    # and there is no hosted arm64 image for macOS 12 or 13, so the floor the app
+    # declares (13.0, in Package.swift) is enforced at COMPILE time by the build step
+    # below and is not verified at runtime by anyone. Say so in the README.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: engine/python
-          key: engine-${{ runner.os }}-${{ hashFiles('engine/setup-engine.sh') }}
+          key: engine-${{ matrix.os }}-${{ hashFiles('engine/setup-engine.sh') }}
 
       - name: Bootstrap engine (relocatable CPython + OpenUSD)
         if: steps.engine-cache.outputs.cache-hit != 'true'
@@ -32,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: tests/fixtures
-          key: fixtures-${{ hashFiles('tests/test_conversion.py') }}
+          key: fixtures-${{ matrix.os }}-${{ hashFiles('tests/test_conversion.py') }}
 
       - name: Run regression suite
         run: ./engine/python/bin/python3.14 -m pytest tests -v --tb=short
